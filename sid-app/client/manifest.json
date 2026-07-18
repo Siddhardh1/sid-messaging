@@ -1,0 +1,21 @@
+{
+  "short_name": "Sid",
+  "name": "Sid - Private Messenger",
+  "icons": [
+    {
+      "src": "https://api.dicebear.com/7.x/bottts/png?seed=Sid&size=192",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://api.dicebear.com/7.x/bottts/png?seed=Sid&size=512",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0b0f19",
+  "theme_color": "#8636e0",
+  "display": "standalone",
+  "orientation": "portrait"
+}
