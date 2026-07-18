@@ -35,7 +35,7 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/calls', callRoutes);
 
 // SPA client fallback routing
-app.get('(.*)', (req, res) => {
+app.get('{/*splat}', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/index.html'));
 });
 
