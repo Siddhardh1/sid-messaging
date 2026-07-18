@@ -28,15 +28,28 @@ const signToken = (payload, expiresIn = '30d') => {
 // @route   POST /api/auth/register
 // @desc    Register a new user
 router.post('/register', async (req, res) => {
-  const { username, email, password } = req.body;
+  const { username, email, password, sidId } = req.body;
 
   try {
-    if (!username || !email || !password) {
+    if (!username || !email || !password || !sidId) {
       return res.status(400).json({ success: false, message: 'Please enter all fields' });
     }
 
-    let user = await User.findOne({ $or: [{ email }, { username }] });
+    const formattedSidId = sidId.trim().toLowerCase();
+
+    // Check if email, username, or sidId already exists
+    let user = await User.findOne({
+      $or: [
+        { email: email.trim().toLowerCase() },
+        { username: username.trim().toLowerCase() },
+        { sidId: formattedSidId }
+      ]
+    });
+
     if (user) {
+      if (user.sidId === formattedSidId) {
+        return res.status(400).json({ success: false, message: 'SID ID already exists' });
+      }
       return res.status(400).json({ success: false, message: 'Username or email already exists' });
     }
 
@@ -46,7 +59,8 @@ router.post('/register', async (req, res) => {
     user = new User({
       username,
       email,
-      passwordHash
+      passwordHash,
+      sidId: formattedSidId
     });
 
     await user.save();
@@ -59,6 +73,7 @@ router.post('/register', async (req, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
+        sidId: user.sidId,
         settings: user.settings
       }
     });

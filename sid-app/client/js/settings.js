@@ -11,6 +11,7 @@ function openProfileModal() {
   // Populate username and email details
   document.getElementById('settings-username-display').value = currentUser.username;
   document.getElementById('settings-email-display').value = currentUser.email;
+  document.getElementById('settings-sidid-display').value = currentUser.sidId || 'Not Set';
 
   // Toggle MFA button text based on status
   const mfaBtn = document.getElementById('mfa-settings-btn');

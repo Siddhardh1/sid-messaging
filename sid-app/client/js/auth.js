@@ -108,12 +108,13 @@ async function handleSignup(e) {
   const username = document.getElementById('signup-username').value.trim();
   const email = document.getElementById('signup-email').value.trim();
   const password = document.getElementById('signup-password').value;
+  const sidId = document.getElementById('signup-sidid').value.trim();
 
   try {
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, email, password })
+      body: JSON.stringify({ username, email, password, sidId })
     });
     const data = await res.json();
 

@@ -75,6 +75,10 @@
             <input type="email" id="signup-email" placeholder="Email Address" required autocomplete="email">
           </div>
           <div class="input-group">
+            <i class="fa-solid fa-at input-icon"></i>
+            <input type="text" id="signup-sidid" placeholder="Unique SID ID (e.g. siddu)" required>
+          </div>
+          <div class="input-group">
             <i class="fa-solid fa-lock input-icon"></i>
             <input type="password" id="signup-password" placeholder="Password" required autocomplete="new-password">
           </div>
@@ -171,6 +175,16 @@
                   <i class="fa-solid fa-plus"></i> Add New Contact
                 </button>
               </div>
+              
+              <!-- Pending Requests Section -->
+              <div id="pending-requests-section" class="pending-section hidden">
+                <h4 class="section-title">Pending Requests</h4>
+                <div id="pending-requests-list">
+                  <!-- Injected dynamically -->
+                </div>
+              </div>
+              
+              <h4 class="section-title">My Contacts</h4>
               <div id="contacts-sublist">
                 <!-- Rendered Dynamically -->
               </div>
@@ -348,6 +362,10 @@
           <div class="form-group mb-3">
             <label>Email Address</label>
             <input type="email" id="settings-email-display" class="input-field mt-1" readonly style="opacity: 0.7; cursor: not-allowed; background: rgba(0,0,0,0.06);">
+          </div>
+          <div class="form-group mb-3">
+            <label>Unique SID ID</label>
+            <input type="text" id="settings-sidid-display" class="input-field mt-1" readonly style="opacity: 0.7; cursor: not-allowed; background: rgba(0,0,0,0.06);">
           </div>
           <div class="form-group mb-3">
             <label>Privacy Setting: Last Seen</label>

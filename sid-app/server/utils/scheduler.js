@@ -32,4 +32,33 @@ const checkScheduledMessages = (io) => {
   }, 5000); // Every 5 seconds resolution
 };
 
-module.exports = { checkScheduledMessages };
+// Background job to delete messages older than 20 days
+const startAutoDeleteJob = () => {
+  const runPruning = async () => {
+    try {
+      if (mongoose.connection.readyState !== 1) return;
+      
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - 20);
+      
+      // Delete all messages created before the 20 days cutoff
+      const result = await Message.deleteMany({
+        createdAt: { $lt: cutoffDate }
+      });
+      
+      if (result.deletedCount > 0) {
+        console.log(`[Auto-Delete Daemon] Pruned ${result.deletedCount} message(s) older than 20 days.`);
+      }
+    } catch (err) {
+      console.error('Error running message auto-delete job:', err);
+    }
+  };
+
+  // Run once immediately on startup
+  runPruning();
+
+  // Then check every hour
+  setInterval(runPruning, 3600000);
+};
+
+module.exports = { checkScheduledMessages, startAutoDeleteJob };

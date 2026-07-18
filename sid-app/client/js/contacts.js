@@ -2,6 +2,8 @@
 
 let myContacts = [];
 let myBlockedUsers = [];
+let myIncomingRequests = [];
+let myOutgoingRequests = [];
 
 // Fetch and render contacts sidebar list
 async function loadContactsList() {
@@ -13,6 +15,8 @@ async function loadContactsList() {
     if (data.success) {
       myContacts = data.contacts;
       myBlockedUsers = data.blockedUsers;
+      myIncomingRequests = data.incomingRequests || [];
+      myOutgoingRequests = data.outgoingRequests || [];
       renderContacts();
     }
   } catch (err) {
@@ -20,11 +24,73 @@ async function loadContactsList() {
   }
 }
 
-// Render contacts to sidebar list
+// Render contacts and pending requests to sidebar list
 function renderContacts() {
   const container = document.getElementById('contacts-sublist');
   if (!container) return;
 
+  // Render pending requests if they exist
+  const pendingSection = document.getElementById('pending-requests-section');
+  const pendingList = document.getElementById('pending-requests-list');
+  
+  if (pendingSection && pendingList) {
+    const hasIncoming = myIncomingRequests && myIncomingRequests.length > 0;
+    const hasOutgoing = myOutgoingRequests && myOutgoingRequests.length > 0;
+    
+    if (hasIncoming || hasOutgoing) {
+      pendingSection.classList.remove('hidden');
+      
+      let incomingHtml = '';
+      if (hasIncoming) {
+        incomingHtml = myIncomingRequests.map(req => {
+          const avatar = req.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${req.username}`;
+          return `
+            <div class="pending-item">
+              <div class="pending-info">
+                <img src="${avatar}" alt="${req.username}" class="pending-avatar">
+                <div>
+                  <span class="font-sm font-weight-bold" style="display:block;color:var(--text-primary);">${req.username}</span>
+                  <span style="font-size: 10px; color: var(--text-secondary);">@${req.sidId || 'id'} sent you a request</span>
+                </div>
+              </div>
+              <div class="pending-actions">
+                <button class="btn-accept" onclick="acceptContactRequest('${req._id}')">Accept</button>
+                <button class="btn-decline" onclick="declineContactRequest('${req._id}')">Decline</button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      let outgoingHtml = '';
+      if (hasOutgoing) {
+        outgoingHtml = myOutgoingRequests.map(req => {
+          const avatar = req.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${req.username}`;
+          return `
+            <div class="pending-item">
+              <div class="pending-info">
+                <img src="${avatar}" alt="${req.username}" class="pending-avatar">
+                <div>
+                  <span class="font-sm font-weight-bold" style="display:block;color:var(--text-primary);">${req.username}</span>
+                  <span style="font-size: 10px; color: var(--text-secondary);">Waiting for response</span>
+                </div>
+              </div>
+              <div class="pending-actions">
+                <span class="font-sm text-muted" style="font-size:10px;">Pending</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      pendingList.innerHTML = incomingHtml + outgoingHtml;
+    } else {
+      pendingSection.classList.add('hidden');
+      pendingList.innerHTML = '';
+    }
+  }
+
+  // Render confirmed contacts
   if (myContacts.length === 0) {
     container.innerHTML = `
       <div class="empty-state-list">
@@ -83,12 +149,18 @@ async function handleContactSearch(query) {
         const avatar = user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.username}`;
         const isAlreadyContact = myContacts.some(c => c._id === user._id);
         const isBlocked = myBlockedUsers.some(b => b._id === user._id);
+        const isOutgoing = myOutgoingRequests.some(r => r._id === user._id);
+        const isIncoming = myIncomingRequests.some(r => r._id === user._id);
 
         let actionBtn = `<button class="btn btn-sm btn-primary" onclick="addContact('${user._id}')">Add</button>`;
         if (isAlreadyContact) {
           actionBtn = `<span class="font-sm text-muted"><i class="fa-solid fa-check"></i> Added</span>`;
         } else if (isBlocked) {
           actionBtn = `<span class="font-sm text-danger"><i class="fa-solid fa-ban"></i> Blocked</span>`;
+        } else if (isOutgoing) {
+          actionBtn = `<span class="font-sm text-muted"><i class="fa-solid fa-clock"></i> Pending</span>`;
+        } else if (isIncoming) {
+          actionBtn = `<button class="btn btn-sm btn-success" onclick="acceptContactRequest('${user._id}'); closeAddContactModal();">Accept</button>`;
         }
 
         return `
@@ -122,15 +194,66 @@ async function addContact(contactId) {
     });
     const data = await res.json();
     if (data.success) {
-      alert('Contact added!');
+      alert('Contact request sent!');
       loadContactsList();
       closeAddContactModal();
     } else {
-      alert(data.message || 'Error adding contact');
+      alert(data.message || 'Error sending request');
     }
   } catch (err) {
     console.error(err);
-    alert('Server error adding contact');
+    alert('Server error sending request');
+  }
+}
+
+// Accept Contact/Friend Request
+async function acceptContactRequest(requesterId) {
+  try {
+    const res = await fetch('/api/users/contacts/requests/accept', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${currentToken}`
+      },
+      body: JSON.stringify({ requesterId })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert('Contact request accepted!');
+      loadContactsList();
+      if (typeof loadChatsList === 'function') {
+        loadChatsList();
+      }
+    } else {
+      alert(data.message || 'Error accepting request');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Server error accepting request');
+  }
+}
+
+// Decline Contact/Friend Request
+async function declineContactRequest(requesterId) {
+  try {
+    const res = await fetch('/api/users/contacts/requests/decline', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${currentToken}`
+      },
+      body: JSON.stringify({ requesterId })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert('Request declined.');
+      loadContactsList();
+    } else {
+      alert(data.message || 'Error declining request');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Server error declining request');
   }
 }
 

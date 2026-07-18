@@ -34,7 +34,22 @@ const UserSchema = new mongoose.Schema({
     counter: { type: Number, default: 0 },
     transports: [String]
   }],
+  sidId: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true,
+    lowercase: true
+  },
   contacts: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  incomingRequests: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  outgoingRequests: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],

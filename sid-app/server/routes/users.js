@@ -50,6 +50,7 @@ router.put('/profile', protect, async (req, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
+        sidId: user.sidId,
         avatar: user.avatar,
         settings: user.settings,
         contacts: user.contacts
@@ -62,7 +63,7 @@ router.put('/profile', protect, async (req, res) => {
 });
 
 // @route   GET /api/users/search
-// @desc    Search for users by username
+// @desc    Search for users by exact sidId
 router.get('/search', protect, async (req, res) => {
   const { q } = req.query;
   try {
@@ -70,11 +71,11 @@ router.get('/search', protect, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Query parameter is required' });
     }
 
-    // Search username match, excluding current user
+    // Search STRICTLY by exact sidId (case-insensitive/lowercase, excluding current user)
     const users = await User.find({
-      username: { $regex: q, $options: 'i' },
+      sidId: q.trim().toLowerCase(),
       _id: { $ne: req.user.id }
-    }).select('username email avatar lastSeen settings.showLastSeen');
+    }).select('username email avatar lastSeen settings.showLastSeen sidId');
 
     res.json({ success: true, users });
   } catch (err) {
@@ -84,15 +85,19 @@ router.get('/search', protect, async (req, res) => {
 });
 
 // @route   GET /api/users/contacts
-// @desc    Get user contacts list
+// @desc    Get user contacts list and pending requests
 router.get('/contacts', protect, async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
-      .populate('contacts', 'username email avatar lastSeen settings.showLastSeen')
+      .populate('contacts', 'username email avatar lastSeen settings.showLastSeen sidId')
+      .populate('incomingRequests', 'username email avatar lastSeen settings.showLastSeen sidId')
+      .populate('outgoingRequests', 'username email avatar lastSeen settings.showLastSeen sidId')
       .populate('blockedUsers', 'username email avatar');
     res.json({
       success: true,
       contacts: user.contacts,
+      incomingRequests: user.incomingRequests || [],
+      outgoingRequests: user.outgoingRequests || [],
       blockedUsers: user.blockedUsers
     });
   } catch (err) {
@@ -102,7 +107,7 @@ router.get('/contacts', protect, async (req, res) => {
 });
 
 // @route   POST /api/users/contacts/add
-// @desc    Add a user to contacts list
+// @desc    Send contact request to a user
 router.post('/contacts/add', protect, async (req, res) => {
   const { contactId } = req.body;
   try {
@@ -120,13 +125,32 @@ router.post('/contacts/add', protect, async (req, res) => {
       return res.status(400).json({ success: false, message: 'User is already in your contacts' });
     }
 
-    user.contacts.push(contactId);
-    await user.save();
+    if (user.outgoingRequests.includes(contactId)) {
+      return res.status(400).json({ success: false, message: 'Request already sent to this user' });
+    }
 
-    res.json({ success: true, message: 'Contact added successfully', contact: contactUser });
+    if (user.incomingRequests.includes(contactId)) {
+      return res.status(400).json({ success: false, message: 'This user already sent you a contact request' });
+    }
+
+    // Add to outgoing/incoming lists
+    user.outgoingRequests.push(contactId);
+    contactUser.incomingRequests.push(req.user.id);
+
+    await user.save();
+    await contactUser.save();
+
+    // Emit Socket updates to trigger list reload in real-time
+    const io = req.app.get('socketio');
+    if (io) {
+      io.emit('contacts-update', { userId: contactId });
+      io.emit('contacts-update', { userId: req.user.id });
+    }
+
+    res.json({ success: true, message: 'Contact request sent successfully!' });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: 'Server error adding contact' });
+    res.status(500).json({ success: false, message: 'Server error sending request' });
   }
 });
 
@@ -142,6 +166,89 @@ router.delete('/contacts/remove', protect, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error removing contact' });
+  }
+});
+
+// @route   POST /api/users/contacts/requests/accept
+// @desc    Accept a contact request
+router.post('/contacts/requests/accept', protect, async (req, res) => {
+  const { requesterId } = req.body;
+  try {
+    const user = await User.findById(req.user.id);
+    const requester = await User.findById(requesterId);
+    if (!user || !requester) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Move from requests queues to contacts arrays
+    user.incomingRequests = user.incomingRequests.filter(id => id.toString() !== requesterId);
+    requester.outgoingRequests = requester.outgoingRequests.filter(id => id.toString() !== req.user.id);
+
+    if (!user.contacts.includes(requesterId)) user.contacts.push(requesterId);
+    if (!requester.contacts.includes(req.user.id)) requester.contacts.push(req.user.id);
+
+    await user.save();
+    await requester.save();
+
+    // Auto-create Chat (DM) between them if not exist
+    const Chat = require('../models/Chat');
+    let chat = await Chat.findOne({
+      isGroup: false,
+      participants: { $all: [req.user.id, requesterId] }
+    });
+
+    if (!chat) {
+      chat = new Chat({
+        isGroup: false,
+        participants: [req.user.id, requesterId],
+        admins: [req.user.id]
+      });
+      await chat.save();
+    }
+
+    // Emit Socket updates
+    const io = req.app.get('socketio');
+    if (io) {
+      io.emit('contacts-update', { userId: req.user.id });
+      io.emit('contacts-update', { userId: requesterId });
+      io.emit('chats-update', { userId: req.user.id });
+      io.emit('chats-update', { userId: requesterId });
+    }
+
+    res.json({ success: true, message: 'Contact request accepted!' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error accepting request' });
+  }
+});
+
+// @route   POST /api/users/contacts/requests/decline
+// @desc    Decline a contact request
+router.post('/contacts/requests/decline', protect, async (req, res) => {
+  const { requesterId } = req.body;
+  try {
+    const user = await User.findById(req.user.id);
+    const requester = await User.findById(requesterId);
+    if (!user || !requester) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    user.incomingRequests = user.incomingRequests.filter(id => id.toString() !== requesterId);
+    requester.outgoingRequests = requester.outgoingRequests.filter(id => id.toString() !== req.user.id);
+
+    await user.save();
+    await requester.save();
+
+    const io = req.app.get('socketio');
+    if (io) {
+      io.emit('contacts-update', { userId: req.user.id });
+      io.emit('contacts-update', { userId: requesterId });
+    }
+
+    res.json({ success: true, message: 'Contact request declined' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error declining request' });
   }
 });
 

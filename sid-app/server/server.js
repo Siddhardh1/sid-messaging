@@ -5,7 +5,7 @@ const path = require('path');
 const cors = require('cors');
 const connectDB = require('./config/database');
 const { configureSocket } = require('./config/socket');
-const { checkScheduledMessages } = require('./utils/scheduler');
+const { checkScheduledMessages, startAutoDeleteJob } = require('./utils/scheduler');
 
 // Routes imports
 const authRoutes = require('./routes/auth');
@@ -35,7 +35,7 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/calls', callRoutes);
 
 // SPA client fallback routing
-app.get('*all', (req, res) => {
+app.get('(.*)', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/index.html'));
 });
 
@@ -45,6 +45,7 @@ app.set('socketio', io);
 
 // Scheduled message checks daemon
 checkScheduledMessages(io);
+startAutoDeleteJob();
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {

@@ -82,7 +82,19 @@ function initializeSocket() {
     if (attBlock) attBlock.remove();
   });
 
+  window.socket.on('contacts-update', ({ userId }) => {
+    const currentId = currentUser ? (currentUser.id || currentUser._id) : null;
+    if (userId === currentId) {
+      loadContactsList();
+    }
+  });
 
+  window.socket.on('chats-update', ({ userId }) => {
+    const currentId = currentUser ? (currentUser.id || currentUser._id) : null;
+    if (userId === currentId) {
+      loadChatsList();
+    }
+  });
 
   // Track online status changes
   window.socket.on('user-status-change', ({ userId, status, lastSeen }) => {

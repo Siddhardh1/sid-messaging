@@ -1791,3 +1791,79 @@ input:checked + .slider:before { transform: translateX(20px); }
     right: 20px;
   }
 }
+
+/* ==================== PENDING REQUESTS PANEL STYLES ==================== */
+
+.section-title {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  margin: 16px 20px 8px 20px;
+  font-weight: 700;
+}
+
+.pending-section {
+  border-bottom: 1px solid var(--panel-border);
+  padding-bottom: 10px;
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.pending-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px dashed var(--panel-border);
+}
+
+.pending-item:last-child {
+  border-bottom: none;
+}
+
+.pending-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pending-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--panel-border);
+}
+
+.pending-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-accept {
+  background: #10b981;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+
+.btn-decline {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+
+.btn-accept:hover, .btn-decline:hover {
+  opacity: 0.85;
+}
