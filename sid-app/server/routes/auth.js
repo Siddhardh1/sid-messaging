@@ -25,22 +25,132 @@ const signToken = (payload, expiresIn = '30d') => {
   return jwt.sign(payload, JWT_SECRET, { expiresIn });
 };
 
-// @route   POST /api/auth/register
-// @desc    Register a new user
-router.post('/register', async (req, res) => {
-  const { username, email, password, sidId } = req.body;
+// In-memory store for registration OTPs
+const registerOtps = new Map();
+
+// @route   POST /api/auth/register/send-otp
+// @desc    Validate input fields and email OTP code
+router.post('/register/send-otp', async (req, res) => {
+  const { username, email, sidId } = req.body;
 
   try {
-    if (!username || !email || !password || !sidId) {
+    if (!username || !email || !sidId) {
       return res.status(400).json({ success: false, message: 'Please enter all fields' });
     }
 
     const formattedSidId = sidId.trim().toLowerCase();
+    const formattedEmail = email.trim().toLowerCase();
+    const formattedUsername = username.trim().toLowerCase();
+
+    // Verify username, email, or sidId doesn't exist
+    let user = await User.findOne({
+      $or: [
+        { email: formattedEmail },
+        { username: formattedUsername },
+        { sidId: formattedSidId }
+      ]
+    });
+
+    if (user) {
+      if (user.sidId === formattedSidId) {
+        return res.status(400).json({ success: false, message: 'SID ID already exists' });
+      }
+      return res.status(400).json({ success: false, message: 'Username or email already exists' });
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Store in-memory with a 5-minute TTL
+    registerOtps.set(formattedEmail, {
+      otp,
+      expires: Date.now() + 5 * 60 * 1000
+    });
+
+    // Send email using Nodemailer
+    const userEmail = process.env.EMAIL_USER;
+    const userPass = process.env.EMAIL_PASS;
+
+    if (userEmail && userPass) {
+      const nodemailer = require('nodemailer');
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: userEmail,
+          pass: userPass
+        }
+      });
+
+      const mailOptions = {
+        from: `"Sid AI" <${userEmail}>`,
+        to: formattedEmail,
+        subject: 'Confirm Your Email Address - Sid Messenger OTP',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px; background-color: #ffffff; color: #1f2937;">
+            <h2 style="color: #3b82f6; text-align: center;">Email Verification Code</h2>
+            <p>Hello,</p>
+            <p>Thank you for signing up for Sid Messenger! To complete your registration, please use the following One-Time Password (OTP) verification code:</p>
+            <div style="background-color: #f3f4f6; border-radius: 8px; padding: 15px; margin: 20px 0; text-align: center;">
+              <span style="font-size: 2.25rem; font-weight: bold; letter-spacing: 6px; color: #1e3a8a;">${otp}</span>
+            </div>
+            <p style="font-size: 0.875rem; color: #6b7280; text-align: center;">This code will expire in 5 minutes. Do not share this code with anyone.</p>
+            <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+            <p style="font-size: 0.75rem; color: #9ca3af; text-align: center;">If you did not request this code, you can safely ignore this email.</p>
+          </div>
+        `
+      };
+
+      await transporter.sendMail(mailOptions);
+      console.log(`[SMTP] Registration OTP sent to ${formattedEmail}`);
+    } else {
+      // Developer bypass output
+      console.log(`\n==============================================`);
+      console.log(`[EMAIL BYPASS] OTP for ${formattedEmail} is: ${otp}`);
+      console.log(`==============================================\n`);
+    }
+
+    res.json({ success: true, message: 'OTP sent successfully!' });
+  } catch (err) {
+    console.error('Error sending registration OTP:', err);
+    res.status(500).json({ success: false, message: 'Error sending verification code' });
+  }
+});
+
+// @route   POST /api/auth/register
+// @desc    Register a new user
+router.post('/register', async (req, res) => {
+  const { username, email, password, sidId, otp } = req.body;
+
+  try {
+    if (!username || !email || !password || !sidId || !otp) {
+      return res.status(400).json({ success: false, message: 'Please enter all fields' });
+    }
+
+    const formattedSidId = sidId.trim().toLowerCase();
+    const formattedEmail = email.trim().toLowerCase();
+
+    // Verify OTP code
+    const storedOtpData = registerOtps.get(formattedEmail);
+    if (!storedOtpData) {
+      return res.status(400).json({ success: false, message: 'OTP not found. Please request a new one.' });
+    }
+
+    if (storedOtpData.expires < Date.now()) {
+      registerOtps.delete(formattedEmail);
+      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
+    }
+
+    if (storedOtpData.otp !== otp.trim()) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP code' });
+    }
+
+    // OTP verified successfully, delete it
+    registerOtps.delete(formattedEmail);
 
     // Check if email, username, or sidId already exists
     let user = await User.findOne({
       $or: [
-        { email: email.trim().toLowerCase() },
+        { email: formattedEmail },
         { username: username.trim().toLowerCase() },
         { sidId: formattedSidId }
       ]

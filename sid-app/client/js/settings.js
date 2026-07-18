@@ -51,6 +51,16 @@ function randomizeSettingsAvatar() {
   document.getElementById('settings-avatar-preview').src = `https://api.dicebear.com/7.x/bottts/svg?seed=${seed}`;
 }
 
+// Handle local file profile picture uploads from user gallery
+function handleSettingsAvatarUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  compressAndResizeImage(file, 200, 200, (compressedBase64) => {
+    document.getElementById('settings-avatar-preview').src = compressedBase64;
+  });
+}
+
 // Save Profile modifications
 async function saveProfileChanges() {
   const avatar = document.getElementById('settings-avatar-preview').src;

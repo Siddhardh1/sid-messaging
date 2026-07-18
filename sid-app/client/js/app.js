@@ -30,6 +30,8 @@ document.addEventListener('DOMContentLoaded', () => {
           if (typeof closeAddContactModal === 'function') closeAddContactModal();
         } else if (modal.id === 'create-group-modal') {
           if (typeof closeCreateGroupModal === 'function') closeCreateGroupModal();
+        } else if (modal.id === 'otp-modal') {
+          if (typeof closeOtpModal === 'function') closeOtpModal();
         } else if (modal.id === 'mfa-setup-modal') {
           if (typeof closeMfaSetupModal === 'function') closeMfaSetupModal();
         } else {

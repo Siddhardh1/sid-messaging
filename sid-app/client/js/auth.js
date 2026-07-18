@@ -102,7 +102,10 @@ function closeMfaOverlay() {
   tempMfaToken = null;
 }
 
-// Standard Registration
+let otpTimer = null;
+let otpTimeLeft = 30;
+
+// Standard Registration (Phase 1: Send OTP)
 async function handleSignup(e) {
   e.preventDefault();
   const username = document.getElementById('signup-username').value.trim();
@@ -110,23 +113,117 @@ async function handleSignup(e) {
   const password = document.getElementById('signup-password').value;
   const sidId = document.getElementById('signup-sidid').value.trim();
 
+  // Save registration fields temporarily in memory
+  window.signupData = { username, email, password, sidId };
+
   try {
-    const res = await fetch('/api/auth/register', {
+    const res = await fetch('/api/auth/register/send-otp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, email, password, sidId })
+      body: JSON.stringify({ username, email, sidId })
     });
     const data = await res.json();
 
     if (data.success) {
-      loginSuccess(data.token, data.user);
+      document.getElementById('otp-modal').classList.add('active');
+      startOtpCountdown();
     } else {
       alert(data.message || 'Registration failed');
     }
   } catch (err) {
     console.error(err);
-    alert('Server error registering user');
+    alert('Server error initiating verification');
   }
+}
+
+// 30 Seconds Countdown Timer
+function startOtpCountdown() {
+  otpTimeLeft = 30;
+  document.getElementById('otp-countdown').innerText = otpTimeLeft;
+  document.getElementById('otp-timer-text').classList.remove('hidden');
+  document.getElementById('otp-resend-btn').classList.add('hidden');
+
+  clearInterval(otpTimer);
+  otpTimer = setInterval(() => {
+    otpTimeLeft--;
+    document.getElementById('otp-countdown').innerText = otpTimeLeft;
+
+    if (otpTimeLeft <= 0) {
+      clearInterval(otpTimer);
+      document.getElementById('otp-timer-text').classList.add('hidden');
+      document.getElementById('otp-resend-btn').classList.remove('hidden');
+    }
+  }, 1000);
+}
+
+// Resend OTP trigger
+async function resendSignupOtp() {
+  if (!window.signupData) return;
+  try {
+    const res = await fetch('/api/auth/register/send-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: window.signupData.username,
+        email: window.signupData.email,
+        sidId: window.signupData.sidId
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert('OTP code resent successfully!');
+      startOtpCountdown();
+    } else {
+      alert(data.message || 'Failed to resend OTP');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Error resending verification code');
+  }
+}
+
+// Complete Registration (Phase 2: Verify OTP)
+async function verifyOtpAndRegister() {
+  const otpInput = document.getElementById('otp-verify-code').value.trim();
+  if (!otpInput || otpInput.length !== 6) {
+    return alert('Please enter the 6-digit OTP code');
+  }
+
+  if (!window.signupData) {
+    return alert('Signup data missing. Please refresh and try again.');
+  }
+
+  try {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: window.signupData.username,
+        email: window.signupData.email,
+        password: window.signupData.password,
+        sidId: window.signupData.sidId,
+        otp: otpInput
+      })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      alert('Registration successful!');
+      closeOtpModal();
+      loginSuccess(data.token, data.user);
+    } else {
+      alert(data.message || 'Verification failed');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Server error verifying OTP');
+  }
+}
+
+function closeOtpModal() {
+  document.getElementById('otp-modal').classList.remove('active');
+  document.getElementById('otp-verify-code').value = '';
+  clearInterval(otpTimer);
 }
 
 function loginSuccess(token, user) {

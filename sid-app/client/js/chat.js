@@ -315,6 +315,9 @@ async function loadChatMessages(chatId) {
 
 // Append single message to workspace UI
 function appendMessageToUI(msg) {
+  if (msg._id && document.getElementById(`msg-row-${msg._id}`)) {
+    return; // Already exists in the UI
+  }
   const container = document.getElementById('chat-messages-container');
   const key = getChatE2EEKey(msg.chatId);
 

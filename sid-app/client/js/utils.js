@@ -112,3 +112,41 @@ function base64urlToBuffer(base64url) {
   }
   return bytes.buffer;
 }
+
+// Client-side image resize and JPEG compression helper
+function compressAndResizeImage(file, maxWidth, maxHeight, callback) {
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const img = new Image();
+    img.onload = function () {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      // Adjust dimensions preserving aspect ratio
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Convert to compressed jpeg Base64 (70% quality)
+      const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+      callback(compressedBase64);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
