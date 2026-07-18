@@ -11,7 +11,22 @@ function openProfileModal() {
   // Populate username and email details
   document.getElementById('settings-username-display').value = currentUser.username;
   document.getElementById('settings-email-display').value = currentUser.email;
-  document.getElementById('settings-sidid-display').value = currentUser.sidId || 'Not Set';
+
+  const sidIdInput = document.getElementById('settings-sidid-display');
+  if (currentUser.sidId) {
+    sidIdInput.value = currentUser.sidId;
+    sidIdInput.readOnly = true;
+    sidIdInput.style.opacity = '0.7';
+    sidIdInput.style.cursor = 'not-allowed';
+    sidIdInput.style.background = 'rgba(0,0,0,0.06)';
+  } else {
+    sidIdInput.value = '';
+    sidIdInput.placeholder = 'Set Unique SID ID (Cannot be changed later)';
+    sidIdInput.readOnly = false;
+    sidIdInput.style.opacity = '1';
+    sidIdInput.style.cursor = 'text';
+    sidIdInput.style.background = 'var(--input-bg)';
+  }
 
   // Toggle MFA button text based on status
   const mfaBtn = document.getElementById('mfa-settings-btn');
@@ -39,14 +54,19 @@ function randomizeSettingsAvatar() {
 // Save Profile modifications
 async function saveProfileChanges() {
   const avatar = document.getElementById('settings-avatar-preview').src;
-  const showLastSeen = document.getElementById('settings-lastseen-toggle').checked;
-  const currentPassword = document.getElementById('profile-current-password').value;
-  const newPassword = document.getElementById('profile-new-password').value;
+  const currentPasswordInput = document.getElementById('profile-current-password');
+  const newPasswordInput = document.getElementById('profile-new-password');
 
-  const payload = {
-    avatar,
-    showLastSeen
-  };
+  const currentPassword = currentPasswordInput.value;
+  const newPassword = newPasswordInput.value;
+
+  const payload = { avatar };
+
+  // Set Unique SID ID if not set before
+  const sidIdInput = document.getElementById('settings-sidid-display');
+  if (!currentUser.sidId && sidIdInput.value.trim()) {
+    payload.sidId = sidIdInput.value.trim().toLowerCase();
+  }
 
   if (currentPassword && newPassword) {
     payload.password = currentPassword;
@@ -193,6 +213,16 @@ function setAccentColor(color) {
   const body = document.body;
   body.classList.remove('cobalt-accent', 'emerald-accent', 'amethyst-accent', 'amber-accent', 'rose-accent');
   body.classList.add(`${color}-accent`);
+
+  // Highlight active dot in Customize Settings modal
+  const dots = document.querySelectorAll('.color-dot');
+  dots.forEach(dot => {
+    if (dot.classList.contains(color)) {
+      dot.classList.add('active');
+    } else {
+      dot.classList.remove('active');
+    }
+  });
 
   // Persist preference
   if (currentUser) {
@@ -397,4 +427,45 @@ function downloadFile(content, fileName, contentType) {
   a.download = fileName;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+// Delete User Account
+async function handleDeleteAccount() {
+  const confirmation1 = confirm('WARNING: Are you absolutely sure you want to delete your account? This action is permanent and all your chats, messages, and contacts will be completely deleted.');
+  if (!confirmation1) return;
+
+  const confirmation2 = confirm('LAST WARNING: This cannot be undone. Press OK to permanently wipe your account and logout.');
+  if (!confirmation2) return;
+
+  try {
+    const res = await fetch('/api/users/profile', {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${currentToken}`
+      }
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert('Your account and all associated data have been permanently deleted.');
+      
+      // Perform client-side logout
+      sessionStorage.clear();
+      localStorage.removeItem('token');
+      currentUser = null;
+      currentToken = null;
+      activeChatId = null;
+      
+      // Close all modals
+      const overlays = document.querySelectorAll('.modal-overlay');
+      overlays.forEach(o => o.classList.remove('active'));
+      
+      // Show login screen
+      showScreen('auth-screen');
+    } else {
+      alert(data.message || 'Error deleting account');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Server error deleting account');
+  }
 }

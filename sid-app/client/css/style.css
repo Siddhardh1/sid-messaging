@@ -1402,6 +1402,10 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .color-dot:hover { transform: scale(1.15); }
+.color-dot.active {
+  box-shadow: 0 0 0 2px var(--bg-color), 0 0 0 4px var(--accent-color);
+  transform: scale(1.15);
+}
 .color-dot.cobalt { background: hsl(220, 90%, 56%); }
 .color-dot.emerald { background: hsl(142, 70%, 45%); }
 .color-dot.amethyst { background: hsl(270, 70%, 60%); }

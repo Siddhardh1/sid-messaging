@@ -19,7 +19,7 @@ router.get('/profile', protect, async (req, res) => {
 // @route   PUT /api/users/profile
 // @desc    Update user profile & settings
 router.put('/profile', protect, async (req, res) => {
-  const { avatar, showLastSeen, theme, accentColor, password, newPassword } = req.body;
+  const { avatar, showLastSeen, theme, accentColor, password, newPassword, sidId } = req.body;
 
   try {
     const user = await User.findById(req.user.id);
@@ -31,6 +31,17 @@ router.put('/profile', protect, async (req, res) => {
     if (showLastSeen !== undefined) user.settings.showLastSeen = showLastSeen;
     if (theme !== undefined) user.settings.theme = theme;
     if (accentColor !== undefined) user.settings.accentColor = accentColor;
+
+    // Set sidId if not set before
+    if (sidId !== undefined && !user.sidId) {
+      const formattedSidId = sidId.trim().toLowerCase();
+      // Verify uniqueness
+      const existingUser = await User.findOne({ sidId: formattedSidId });
+      if (existingUser) {
+        return res.status(400).json({ success: false, message: 'SID ID already exists' });
+      }
+      user.sidId = formattedSidId;
+    }
 
     // Handle password change
     if (password && newPassword) {
@@ -286,6 +297,66 @@ router.post('/unblock', protect, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error unblocking user' });
+  }
+});
+
+// @route   DELETE /api/users/profile
+// @desc    Delete user account and all associated data
+router.delete('/profile', protect, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const Chat = require('../models/Chat');
+    const Message = require('../models/Message');
+
+    // Find all chats they are a participant of
+    const userChats = await Chat.find({ participants: userId });
+
+    for (const chat of userChats) {
+      if (chat.isGroup) {
+        // Remove user from group participants
+        chat.participants = chat.participants.filter(p => p.toString() !== userId);
+        // If they were the admin, assign someone else
+        if (chat.admins.includes(userId)) {
+          chat.admins = chat.admins.filter(a => a.toString() !== userId);
+          if (chat.participants.length > 0 && chat.admins.length === 0) {
+            chat.admins.push(chat.participants[0]);
+          }
+        }
+        if (chat.participants.length === 0) {
+          // Delete chat and messages if no participants left
+          await Message.deleteMany({ chatId: chat._id });
+          await Chat.findByIdAndDelete(chat._id);
+        } else {
+          await chat.save();
+        }
+      } else {
+        // Direct Message: Delete the entire chat and all its messages
+        await Message.deleteMany({ chatId: chat._id });
+        await Chat.findByIdAndDelete(chat._id);
+      }
+    }
+
+    // Remove user reference from all other users' lists
+    await User.updateMany(
+      {},
+      {
+        $pull: {
+          contacts: userId,
+          incomingRequests: userId,
+          outgoingRequests: userId,
+          blockedUsers: userId
+        }
+      }
+    );
+
+    // Delete the user document
+    await User.findByIdAndDelete(userId);
+
+    res.json({ success: true, message: 'Account successfully deleted' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error deleting account' });
   }
 });
 
