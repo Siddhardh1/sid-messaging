@@ -1336,8 +1336,17 @@ h1, h2, h3, h4, h5, h6 {
 
 .modal-card {
   width: 90%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
   padding: 24px;
   position: relative;
+}
+
+.modal-body {
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 4px;
 }
 
 .max-w-md { max-width: 500px; }

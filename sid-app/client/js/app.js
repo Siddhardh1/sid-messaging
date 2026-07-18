@@ -19,6 +19,26 @@ document.addEventListener('DOMContentLoaded', () => {
   // Set up responsive visibility listeners
   window.addEventListener('resize', handleWindowResize);
 
+  // Close active modals on Escape key press
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const activeModals = document.querySelectorAll('.modal-overlay.active');
+      activeModals.forEach(modal => {
+        if (modal.id === 'profile-modal') {
+          if (typeof closeProfileModal === 'function') closeProfileModal();
+        } else if (modal.id === 'add-contact-modal') {
+          if (typeof closeAddContactModal === 'function') closeAddContactModal();
+        } else if (modal.id === 'create-group-modal') {
+          if (typeof closeCreateGroupModal === 'function') closeCreateGroupModal();
+        } else if (modal.id === 'mfa-setup-modal') {
+          if (typeof closeMfaSetupModal === 'function') closeMfaSetupModal();
+        } else {
+          modal.classList.remove('active');
+        }
+      });
+    }
+  });
+
   // Handle enter key press on chat textarea to send message
   document.getElementById('message-text-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
