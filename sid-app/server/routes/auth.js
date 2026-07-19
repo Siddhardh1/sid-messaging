@@ -72,36 +72,45 @@ router.post('/register/send-otp', async (req, res) => {
     const userPass = process.env.EMAIL_PASS;
 
     if (userEmail && userPass) {
-      const nodemailer = require('nodemailer');
-      const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          user: userEmail,
-          pass: userPass
-        }
-      });
+      try {
+        const nodemailer = require('nodemailer');
+        const transporter = nodemailer.createTransport({
+          service: 'gmail',
+          auth: {
+            user: userEmail,
+            pass: userPass
+          },
+          connectionTimeout: 4000, // 4 seconds timeout
+          socketTimeout: 4000      // 4 seconds socket timeout
+        });
 
-      const mailOptions = {
-        from: `"Sid AI" <${userEmail}>`,
-        to: formattedEmail,
-        subject: 'Confirm Your Email Address - Sid Messenger OTP',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px; background-color: #ffffff; color: #1f2937;">
-            <h2 style="color: #3b82f6; text-align: center;">Email Verification Code</h2>
-            <p>Hello,</p>
-            <p>Thank you for signing up for Sid Messenger! To complete your registration, please use the following One-Time Password (OTP) verification code:</p>
-            <div style="background-color: #f3f4f6; border-radius: 8px; padding: 15px; margin: 20px 0; text-align: center;">
-              <span style="font-size: 2.25rem; font-weight: bold; letter-spacing: 6px; color: #1e3a8a;">${otp}</span>
+        const mailOptions = {
+          from: `"Sid AI" <${userEmail}>`,
+          to: formattedEmail,
+          subject: 'Confirm Your Email Address - Sid Messenger OTP',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px; background-color: #ffffff; color: #1f2937;">
+              <h2 style="color: #3b82f6; text-align: center;">Email Verification Code</h2>
+              <p>Hello,</p>
+              <p>Thank you for signing up for Sid Messenger! To complete your registration, please use the following One-Time Password (OTP) verification code:</p>
+              <div style="background-color: #f3f4f6; border-radius: 8px; padding: 15px; margin: 20px 0; text-align: center;">
+                <span style="font-size: 2.25rem; font-weight: bold; letter-spacing: 6px; color: #1e3a8a;">${otp}</span>
+              </div>
+              <p style="font-size: 0.875rem; color: #6b7280; text-align: center;">This code will expire in 5 minutes. Do not share this code with anyone.</p>
+              <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+              <p style="font-size: 0.75rem; color: #9ca3af; text-align: center;">If you did not request this code, you can safely ignore this email.</p>
             </div>
-            <p style="font-size: 0.875rem; color: #6b7280; text-align: center;">This code will expire in 5 minutes. Do not share this code with anyone.</p>
-            <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 20px 0;">
-            <p style="font-size: 0.75rem; color: #9ca3af; text-align: center;">If you did not request this code, you can safely ignore this email.</p>
-          </div>
-        `
-      };
+          `
+        };
 
-      await transporter.sendMail(mailOptions);
-      console.log(`[SMTP] Registration OTP sent to ${formattedEmail}`);
+        await transporter.sendMail(mailOptions);
+        console.log(`[SMTP] Registration OTP sent to ${formattedEmail}`);
+      } catch (smtpErr) {
+        console.error('SMTP sending failed, falling back to bypass log:', smtpErr.message);
+        console.log(`\n==============================================`);
+        console.log(`[EMAIL BYPASS (SMTP FAILED)] OTP for ${formattedEmail} is: ${otp}`);
+        console.log(`==============================================\n`);
+      }
     } else {
       // Developer bypass output
       console.log(`\n==============================================`);
