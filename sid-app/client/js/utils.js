@@ -1,5 +1,55 @@
 // ==================== SECURITY & UTILITIES ====================
 
+// Override native window.alert globally with a custom styled in-app modal dialog
+function showCustomAlert(message) {
+  let alertOverlay = document.getElementById('custom-alert-overlay');
+  
+  if (!alertOverlay) {
+    alertOverlay = document.createElement('div');
+    alertOverlay.id = 'custom-alert-overlay';
+    alertOverlay.className = 'custom-alert-overlay';
+    
+    const card = document.createElement('div');
+    card.className = 'custom-alert-card glass-card animate-zoom-in';
+    
+    const header = document.createElement('div');
+    header.className = 'custom-alert-header';
+    header.innerHTML = `<i class="fa-solid fa-circle-info custom-alert-icon"></i> <h3>Notification</h3>`;
+    
+    const body = document.createElement('div');
+    body.className = 'custom-alert-body';
+    body.id = 'custom-alert-message';
+    body.innerText = message;
+    
+    const footer = document.createElement('div');
+    footer.className = 'custom-alert-footer';
+    const okBtn = document.createElement('button');
+    okBtn.className = 'btn btn-primary';
+    okBtn.innerText = 'OK';
+    okBtn.onclick = () => {
+      alertOverlay.classList.remove('active');
+    };
+    footer.appendChild(okBtn);
+    
+    card.appendChild(header);
+    card.appendChild(body);
+    card.appendChild(footer);
+    alertOverlay.appendChild(card);
+    
+    document.body.appendChild(alertOverlay);
+  } else {
+    document.getElementById('custom-alert-message').innerText = message;
+  }
+  
+  alertOverlay.classList.add('active');
+  
+  setTimeout(() => {
+    const okBtn = alertOverlay.querySelector('.custom-alert-footer button');
+    if (okBtn) okBtn.focus();
+  }, 100);
+}
+window.alert = showCustomAlert;
+
 // Derive a cryptographic key from a passphrase/secret using SHA256
 function deriveE2EEKey(passphrase) {
   if (!passphrase) return null;
