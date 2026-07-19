@@ -620,12 +620,14 @@ async function handleDeleteMessage(messageId, deleteType) {
   }
 }
 
-// Mic Microphone Recording Note
+// WhatsApp-style Voice Note Recording controllers
+let voiceTimer = null;
+let voiceSeconds = 0;
+let shouldSendVoice = false;
+
 async function toggleVoiceRecording() {
-  const btn = document.getElementById('voice-record-btn');
   if (mediaRecorder && mediaRecorder.state === 'recording') {
-    mediaRecorder.stop();
-    btn.classList.remove('recording');
+    stopAndSendVoiceRecording();
     return;
   }
 
@@ -639,26 +641,96 @@ async function toggleVoiceRecording() {
     };
 
     mediaRecorder.onstop = async () => {
+      // Release microphone tracks
+      stream.getTracks().forEach(track => track.stop());
+
+      if (!shouldSendVoice) {
+        console.log('Voice recording discarded.');
+        return;
+      }
+
       const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
       const audioFile = new File([audioBlob], `voice_note_${Date.now()}.webm`, { type: 'audio/webm' });
       
-      // Inject into attachment input manually
-      const fileInput = document.getElementById('attachment-input');
-      
-      // Create DataTransfer container
-      const container = new DataTransfer();
-      container.items.add(audioFile);
-      fileInput.files = container.files;
+      const input = document.getElementById('message-text-input');
+      const oldText = input.value;
+      input.value = '';
 
-      alert('Voice recording captured! Ready to send.');
+      const key = getChatE2EEKey(activeChatId);
+      const encrypted = encryptContentE2EE('', key); // Empty text content for voice message
+
+      const formData = new FormData();
+      formData.append('chatId', activeChatId);
+      formData.append('encryptedContent', encrypted.ciphertext);
+      formData.append('iv', encrypted.iv);
+      formData.append('attachments', audioFile);
+
+      try {
+        const res = await fetch('/api/messages', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${currentToken}` },
+          body: formData
+        });
+        const data = await res.json();
+        if (data.success) {
+          appendMessageToUI(data.message);
+          loadChatsList();
+        } else {
+          alert('Failed to send voice note');
+          input.value = oldText;
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Error sending voice note');
+        input.value = oldText;
+      }
     };
 
+    // Show Overlay UI
+    document.getElementById('voice-recording-overlay').classList.remove('hidden');
+    
+    // Start Recording Timer
+    voiceSeconds = 0;
+    document.getElementById('recording-timer-text').innerText = '00:00';
+    clearInterval(voiceTimer);
+    voiceTimer = setInterval(() => {
+      voiceSeconds++;
+      const mins = Math.floor(voiceSeconds / 60).toString().padStart(2, '0');
+      const secs = (voiceSeconds % 60).toString().padStart(2, '0');
+      document.getElementById('recording-timer-text').innerText = `${mins}:${secs}`;
+    }, 1000);
+
+    shouldSendVoice = false;
     mediaRecorder.start();
-    btn.classList.add('recording');
   } catch (err) {
     console.error(err);
-    alert('Microphone access denied');
+    alert('Microphone access denied or not connected');
   }
+}
+
+// Discard Recording
+function cancelVoiceRecording() {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    shouldSendVoice = false;
+    mediaRecorder.stop();
+  }
+  closeVoiceRecordingOverlay();
+}
+
+// Stop and Send Recording
+function stopAndSendVoiceRecording() {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    shouldSendVoice = true;
+    mediaRecorder.stop();
+  }
+  closeVoiceRecordingOverlay();
+}
+
+// Close Overlay UI
+function closeVoiceRecordingOverlay() {
+  document.getElementById('voice-recording-overlay').classList.add('hidden');
+  clearInterval(voiceTimer);
+  voiceSeconds = 0;
 }
 
 // Native Text-to-Speech Readout

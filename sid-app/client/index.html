@@ -284,7 +284,18 @@
             </div>
 
             <!-- Chat input controller bar -->
-            <footer class="chat-input-bar">
+            <footer class="chat-input-bar" style="position: relative;">
+              <!-- WhatsApp-Style Voice Recording Overlay -->
+              <div id="voice-recording-overlay" class="voice-recording-overlay hidden">
+                <div class="recording-indicator-wrapper">
+                  <span class="recording-pulse-dot"></span>
+                  <span id="recording-timer-text">00:00</span>
+                </div>
+                <div class="recording-controls-wrapper">
+                  <button class="btn-cancel-recording" onclick="cancelVoiceRecording()"><i class="fa-solid fa-trash-can"></i> Cancel</button>
+                  <button class="btn-send-recording" onclick="stopAndSendVoiceRecording()"><i class="fa-solid fa-paper-plane"></i> Send</button>
+                </div>
+              </div>
               
               <!-- Left side attachments / options -->
               <div class="input-actions-left">
