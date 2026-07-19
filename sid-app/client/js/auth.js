@@ -108,6 +108,10 @@ let otpTimeLeft = 30;
 // Standard Registration (Phase 1: Send OTP)
 async function handleSignup(e) {
   e.preventDefault();
+  
+  const submitBtn = document.getElementById('signup-form').querySelector('button[type="submit"]');
+  const originalBtnHtml = submitBtn.innerHTML;
+  
   const username = document.getElementById('signup-username').value.trim();
   const email = document.getElementById('signup-email').value.trim();
   const password = document.getElementById('signup-password').value;
@@ -116,12 +120,23 @@ async function handleSignup(e) {
   // Save registration fields temporarily in memory
   window.signupData = { username, email, password, sidId };
 
+  // Show loading indicator
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = `<span>Sending Code...</span> <i class="fa-solid fa-circle-notch fa-spin"></i>`;
+
+  // 12-second timeout controller
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
+
   try {
     const res = await fetch('/api/auth/register/send-otp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, email, sidId })
+      body: JSON.stringify({ username, email, sidId }),
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
     const data = await res.json();
 
     if (data.success) {
@@ -131,8 +146,16 @@ async function handleSignup(e) {
       alert(data.message || 'Registration failed');
     }
   } catch (err) {
+    clearTimeout(timeoutId);
     console.error(err);
-    alert('Server error initiating verification');
+    if (err.name === 'AbortError') {
+      alert('Verification request timed out. Please check your Render server logs for the OTP or try again.');
+    } else {
+      alert('Server error initiating verification. Please try again.');
+    }
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = originalBtnHtml;
   }
 }
 
@@ -159,6 +182,12 @@ function startOtpCountdown() {
 // Resend OTP trigger
 async function resendSignupOtp() {
   if (!window.signupData) return;
+  
+  const resendBtn = document.getElementById('otp-resend-btn');
+  const originalText = resendBtn.innerText;
+  resendBtn.disabled = true;
+  resendBtn.innerText = 'Resending...';
+
   try {
     const res = await fetch('/api/auth/register/send-otp', {
       method: 'POST',
@@ -179,6 +208,9 @@ async function resendSignupOtp() {
   } catch (err) {
     console.error(err);
     alert('Error resending verification code');
+  } finally {
+    resendBtn.disabled = false;
+    resendBtn.innerText = originalText;
   }
 }
 
@@ -192,6 +224,11 @@ async function verifyOtpAndRegister() {
   if (!window.signupData) {
     return alert('Signup data missing. Please refresh and try again.');
   }
+
+  const confirmBtn = document.getElementById('otp-modal').querySelector('.btn-primary');
+  const originalConfirmHtml = confirmBtn.innerHTML;
+  confirmBtn.disabled = true;
+  confirmBtn.innerHTML = `<span>Verifying...</span> <i class="fa-solid fa-circle-notch fa-spin"></i>`;
 
   try {
     const res = await fetch('/api/auth/register', {
@@ -217,6 +254,9 @@ async function verifyOtpAndRegister() {
   } catch (err) {
     console.error(err);
     alert('Server error verifying OTP');
+  } finally {
+    confirmBtn.disabled = false;
+    confirmBtn.innerHTML = originalConfirmHtml;
   }
 }
 
