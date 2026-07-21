@@ -37,8 +37,29 @@ function initializeSocket() {
         const decryptedText = decryptContentE2EE(message.encryptedContent, message.iv, getChatE2EEKey(message.chatId));
         const senderName = (message.sender && message.sender.username) ? message.sender.username : 'Sid Messenger';
         
+        let bodyText = decryptedText;
+
+        // WhatsApp-style media previews
+        if (message.attachments && message.attachments.length > 0) {
+          const att = message.attachments[0];
+          if (att.mimetype.startsWith('image/')) {
+            bodyText = '📷 Sent you a photo';
+          } else if (att.mimetype.startsWith('video/')) {
+            bodyText = '📹 Sent you a video';
+          } else if (att.mimetype.startsWith('audio/')) {
+            bodyText = '🎙️ Sent you a voice message';
+          } else {
+            bodyText = '📁 Sent you a file';
+          }
+        }
+
+        // Truncate to one line if text is too long
+        if (bodyText && bodyText.length > 60) {
+          bodyText = bodyText.substring(0, 57) + '...';
+        }
+
         new Notification(senderName, {
-          body: decryptedText || 'Sent an attachment',
+          body: bodyText || 'Sent a message',
           icon: (message.sender && message.sender.avatar) ? message.sender.avatar : `https://api.dicebear.com/7.x/bottts/svg?seed=${senderName}`
         });
       }
