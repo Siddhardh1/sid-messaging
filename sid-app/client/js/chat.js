@@ -58,10 +58,24 @@ function initializeSocket() {
           bodyText = bodyText.substring(0, 57) + '...';
         }
 
-        new Notification(senderName, {
+        const notificationOptions = {
           body: bodyText || 'Sent a message',
-          icon: (message.sender && message.sender.avatar) ? message.sender.avatar : `https://api.dicebear.com/7.x/bottts/svg?seed=${senderName}`
-        });
+          icon: (message.sender && message.sender.avatar) ? message.sender.avatar : `https://api.dicebear.com/7.x/bottts/svg?seed=${senderName}`,
+          badge: 'https://api.dicebear.com/7.x/bottts/svg?seed=Sid',
+          data: {
+            url: '/'
+          }
+        };
+
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.ready.then(reg => {
+            reg.showNotification(senderName, notificationOptions);
+          }).catch(() => {
+            new Notification(senderName, notificationOptions);
+          });
+        } else {
+          new Notification(senderName, notificationOptions);
+        }
       }
     }
   });

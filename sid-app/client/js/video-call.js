@@ -55,22 +55,36 @@ function initializeCallSignaling() {
     
     // Add local tracks if not already added
     if (localStream) {
-      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+      localStream.getTracks().forEach(track => {
+        const senders = peerConnection.getSenders();
+        const exists = senders.some(s => s.track === track);
+        if (!exists) {
+          peerConnection.addTrack(track, localStream);
+        }
+      });
     }
     
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
     window.socket.emit('send-answer', { targetUserId: activeCallTargetUserId, answer });
+
+    processQueuedIceCandidates();
   });
 
   window.socket.on('receive-answer', async ({ answer }) => {
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    if (peerConnection) {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+      processQueuedIceCandidates();
+    }
   });
 
   window.socket.on('receive-ice', async ({ candidate }) => {
     try {
-      if (peerConnection) {
+      if (peerConnection && peerConnection.remoteDescription && peerConnection.remoteDescription.type) {
         await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      } else if (peerConnection) {
+        if (!peerConnection.iceCandidatesQueue) peerConnection.iceCandidatesQueue = [];
+        peerConnection.iceCandidatesQueue.push(candidate);
       }
     } catch (e) {
       console.error('Error adding ICE Candidate:', e);
@@ -182,11 +196,15 @@ async function acceptIncomingCall() {
 
     document.getElementById('local-video').srcObject = localStream;
 
+    // Create callee's peer connection ready for offer
+    createPeerConnection();
+    localStream.getTracks().forEach(track => {
+      peerConnection.addTrack(track, localStream);
+    });
+
     window.socket.emit('call-accepted', { targetUserId: activeCallTargetUserId, calleeId: currentUser.id });
     
-    // Acceptor creates the peer connection
-    startRtcConnection();
-
+    document.getElementById('calling-banner').classList.add('hidden');
   } catch (err) {
     console.error(err);
     alert('Access to audio/video devices failed');
@@ -213,15 +231,14 @@ async function startRtcConnection() {
   });
 
   // Caller creates offer
-  if (currentUser.id !== activeCallTargetUserId) {
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-    window.socket.emit('send-offer', { targetUserId: activeCallTargetUserId, offer });
-  }
+  const offer = await peerConnection.createOffer();
+  await peerConnection.setLocalDescription(offer);
+  window.socket.emit('send-offer', { targetUserId: activeCallTargetUserId, offer });
 }
 
 function createPeerConnection() {
   peerConnection = new RTCPeerConnection(rtcConfig);
+  peerConnection.iceCandidatesQueue = [];
 
   peerConnection.onicecandidate = (event) => {
     if (event.candidate) {
@@ -239,6 +256,19 @@ function createPeerConnection() {
       cleanupCallState();
     }
   };
+}
+
+async function processQueuedIceCandidates() {
+  if (peerConnection && peerConnection.iceCandidatesQueue) {
+    for (const candidate of peerConnection.iceCandidatesQueue) {
+      try {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (e) {
+        console.error('Error adding queued ICE Candidate:', e);
+      }
+    }
+    peerConnection.iceCandidatesQueue = [];
+  }
 }
 
 // --- CALL CONTROLS SETTERS ---
