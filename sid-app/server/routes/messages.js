@@ -285,6 +285,63 @@ router.post('/', protect, upload.array('attachments', 5), async (req, res) => {
     }
 
     res.status(201).json({ success: true, message });
+
+    // Send background Web Push notifications to other participants
+    if (!message.scheduledFor) {
+      try {
+        const webpush = require('web-push');
+        const recipients = chat.participants.filter(p => p.toString() !== req.user.id);
+
+        for (const recipientId of recipients) {
+          const recipient = await User.findById(recipientId);
+          if (recipient && recipient.pushSubscriptions && recipient.pushSubscriptions.length > 0) {
+            
+            // Build notification payload
+            let bodyPreview = 'Sent you a message';
+            if (message.attachments && message.attachments.length > 0) {
+              const mime = message.attachments[0].mimetype;
+              if (mime.startsWith('image/')) {
+                bodyPreview = '📷 Sent you a photo';
+              } else if (mime.startsWith('video/')) {
+                bodyPreview = '📹 Sent you a video';
+              } else if (mime.startsWith('audio/')) {
+                bodyPreview = '🎙️ Sent you a voice message';
+              } else {
+                bodyPreview = '📁 Sent you a file';
+              }
+            }
+
+            const payload = JSON.stringify({
+              title: req.user.username || 'Sid Messenger',
+              body: bodyPreview,
+              url: `/`
+            });
+
+            const invalidSubscriptions = [];
+            for (const sub of recipient.pushSubscriptions) {
+              try {
+                await webpush.sendNotification(sub, payload);
+              } catch (pushErr) {
+                console.error('Push failed for endpoint:', sub.endpoint, pushErr.statusCode);
+                if (pushErr.statusCode === 410 || pushErr.statusCode === 404) {
+                  invalidSubscriptions.push(sub);
+                }
+              }
+            }
+
+            // Clean up invalid/expired subscriptions
+            if (invalidSubscriptions.length > 0) {
+              recipient.pushSubscriptions = recipient.pushSubscriptions.filter(
+                sub => !invalidSubscriptions.includes(sub)
+              );
+              await recipient.save();
+            }
+          }
+        }
+      } catch (pushGlobalErr) {
+        console.error('Failed to dispatch background Web Push:', pushGlobalErr.message);
+      }
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error sending message' });

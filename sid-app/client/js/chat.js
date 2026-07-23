@@ -243,6 +243,8 @@ async function selectActiveChat(chatId) {
   }
 
   activeChatId = chatId;
+  localStorage.setItem('active_chat_id', chatId);
+  
   document.getElementById('chat-empty-state').classList.remove('active');
   document.getElementById('chat-active-panel').classList.add('active');
   

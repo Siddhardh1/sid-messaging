@@ -74,7 +74,8 @@ const UserSchema = new mongoose.Schema({
   publicKeyDH: {
     type: String,
     default: ''
-  }
+  },
+  pushSubscriptions: [mongoose.Schema.Types.Mixed]
 }, {
   timestamps: true
 });

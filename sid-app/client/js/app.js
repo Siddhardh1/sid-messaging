@@ -109,6 +109,20 @@ function initializeMainDashboard() {
   // Set avatar in nav top
   const userAvatar = currentUser.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser.username}`;
   document.getElementById('my-avatar').src = userAvatar;
+
+  // Restore previous active chat if saved
+  const savedChatId = localStorage.getItem('active_chat_id');
+  if (savedChatId) {
+    setTimeout(() => {
+      // selectActiveChat is in chat.js
+      if (typeof selectActiveChat === 'function') selectActiveChat(savedChatId);
+    }, 400);
+  }
+
+  // Register push notifications
+  setTimeout(() => {
+    initPushNotifications();
+  }, 1200);
 }
 
 // Get and render call logs history
@@ -256,4 +270,62 @@ function handleSidebarSearch(query) {
       item.style.display = 'none';
     }
   });
+}
+
+// Convert VAPID base64 key to Uint8Array for PushManager
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/');
+
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+// Register browser for background push notifications
+async function initPushNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    console.log('Push notifications are not supported by this browser.');
+    return;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    
+    // Fetch public VAPID key
+    const res = await fetch('/api/notifications/vapid-key');
+    const data = await res.json();
+    if (!data.success) {
+      console.warn('Failed to fetch VAPID key:', data.message);
+      return;
+    }
+
+    const applicationServerKey = urlBase64ToUint8Array(data.publicKey);
+    
+    // Subscribe to PushManager
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: applicationServerKey
+    });
+
+    // Save subscription on server
+    await fetch('/api/notifications/subscribe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${currentToken}`
+      },
+      body: JSON.stringify({ subscription })
+    });
+
+    console.log('🎉 Background Web Push successfully registered!');
+  } catch (err) {
+    console.warn('Could not subscribe user to push notifications:', err);
+  }
 }

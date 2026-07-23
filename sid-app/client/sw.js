@@ -44,3 +44,50 @@ self.addEventListener('fetch', (e) => {
     })
   );
 });
+
+// Background Push Notification Event Listener
+self.addEventListener('push', (e) => {
+  let data = { title: 'Sid Messenger', body: 'New notification received' };
+  try {
+    data = e.data.json();
+  } catch (err) {
+    if (e.data) {
+      data.body = e.data.text();
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: data.icon || 'https://api.dicebear.com/7.x/bottts/svg?seed=Sid',
+    badge: 'https://api.dicebear.com/7.x/bottts/svg?seed=Sid',
+    data: {
+      url: data.url || '/'
+    }
+  };
+
+  e.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+// Background Notification Click Event Listener
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const urlToOpen = new URL(e.notification.data.url, self.location.origin).href;
+
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // Focus existing window client if open
+      for (let i = 0; i < windowClients.length; i++) {
+        const client = windowClients[i];
+        if (client.url === urlToOpen && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // Otherwise open new tab window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(urlToOpen);
+      }
+    })
+  );
+});

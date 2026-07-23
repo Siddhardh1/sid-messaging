@@ -289,6 +289,7 @@ function handleLogout() {
   currentToken = null;
   currentUser = null;
   localStorage.removeItem('sid_token');
+  localStorage.removeItem('active_chat_id');
   sessionStorage.removeItem('e2ee_key');
   
   if (window.socket) {
